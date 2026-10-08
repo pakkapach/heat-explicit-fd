@@ -1,0 +1,688 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="ตัวจำลองวิธีผลต่างสืบเนื่องแบบ explicit สำหรับสมการความร้อน (Kreyszig §21.6)">
+<style>html,body{margin:0}[hidden]{display:none!important}img{max-width:100%}</style>
+<title>ตัวจำลองสมการความร้อน</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+Thai:wght@600;700&family=IBM+Plex+Sans+Thai:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one-screen lab — control bar on top, chart (left) and step-by-step grid (right) fill the rest */
+:root {
+  --bg: #f4f6f8; --surface: #ffffff; --ink: #18202b; --muted: #5a6577; --rule: #d9dfe7;
+  --accent: #b4381f; --ok: #2f7d4f; --bad: #b42318; --code-bg: #eef1f5;
+  --src-l: #dbe8fb; --src-l-ink: #1f4f94;
+  --src-c: #e3f3e6; --src-c-ink: #23683c;
+  --src-r: #f1e3fa; --src-r-ink: #6a2f8f;
+  --tgt: #fde3d9;
+  --head: #e1e6ed; --head-ink: #3f4a5a;
+  --f-display: "Noto Serif Thai", "Noto Serif", Georgia, serif;
+  --f-body: "IBM Plex Sans Thai", "Leelawadee UI", Tahoma, system-ui, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11151b; --surface: #181e26; --ink: #e6eaf0; --muted: #98a3b3; --rule: #2a323d;
+    --accent: #f08a5d; --ok: #5cc28a; --bad: #ff7b6b; --code-bg: #1d242e;
+    --src-l: #1b3150; --src-l-ink: #9cc2f5; --src-c: #183a26; --src-c-ink: #8fdcab; --src-r: #35204a; --src-r-ink: #d5aef0; --tgt: #4a2416; --head: #252e3a; --head-ink: #b7c1cf;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11151b; --surface: #181e26; --ink: #e6eaf0; --muted: #98a3b3; --rule: #2a323d;
+  --accent: #f08a5d; --ok: #5cc28a; --bad: #ff7b6b; --code-bg: #1d242e;
+  --src-l: #1b3150; --src-l-ink: #9cc2f5; --src-c: #183a26; --src-c-ink: #8fdcab; --src-r: #35204a; --src-r-ink: #d5aef0; --tgt: #4a2416; --head: #252e3a; --head-ink: #b7c1cf;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 14px; line-height: 1.5; padding-inline: 16px; padding-block: 12px; display: grid; grid-template-rows: auto auto 1fr; gap: 12px; overflow: hidden; }
+@media (max-width: 900px) { body { overflow: auto; height: auto; } }
+
+.bar { display: flex; flex-wrap: wrap; align-items: end; gap: 10px 16px; }
+.brand { display: grid; margin-right: auto; }
+.brand h1 { font-family: var(--f-display); font-size: 1.25rem; margin: 0; line-height: 1.3; }
+.brand .eq { font-family: var(--f-mono); font-size: 0.78rem; color: var(--muted); }
+.field { display: grid; gap: 2px; }
+.field label { font-size: 0.72rem; color: var(--muted); letter-spacing: 0.04em; }
+select, input[type=number] { font: inherit; padding: 5px 8px; border: 1px solid var(--rule); border-radius: 6px; background: var(--surface); color: var(--ink); }
+select { max-width: 270px; }
+input[type=number] { width: 78px; font-family: var(--f-mono); }
+.rbox { display: flex; align-items: center; gap: 8px; padding: 5px 10px; border-radius: 6px; background: var(--surface); border: 1px solid var(--rule); font-family: var(--f-mono); }
+.rbox b { font-size: 1.05rem; }
+.pill { font-family: var(--f-body); font-size: 0.72rem; font-weight: 600; padding: 1px 8px; border-radius: 999px; border: 1px solid currentColor; }
+.pill.ok { color: var(--ok); } .pill.bad { color: var(--bad); }
+button { font: inherit; padding: 5px 12px; border-radius: 6px; border: 1px solid var(--rule); background: var(--surface); color: var(--ink); cursor: pointer; white-space: nowrap; }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--surface); font-weight: 600; }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 12px; min-height: 0; }
+@media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+.card { background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; min-height: 0; min-width: 0; }
+.card h2 { font-size: 0.8rem; font-weight: 600; color: var(--muted); letter-spacing: 0.04em; margin: 0; }
+.plotbox { flex: 1; min-height: 220px; }
+.plotbox svg { width: 100%; height: 100%; display: block; }
+.legend { display: flex; flex-wrap: wrap; gap: 2px 12px; font-size: 0.72rem; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 5px; }
+.sw { width: 16px; height: 3px; border-radius: 2px; display: inline-block; }
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.stat { background: var(--code-bg); border-radius: 6px; padding: 5px 9px; }
+.stat .k { font-size: 0.7rem; color: var(--muted); }
+.stat .n { font-family: var(--f-mono); font-size: 0.95rem; font-variant-numeric: tabular-nums; }
+.desc { font-size: 0.8rem; color: var(--muted); }
+
+/* step grid */
+.sg-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.sg-pos { font-family: var(--f-mono); font-size: 0.78rem; color: var(--muted); margin-left: auto; }
+.sg-chk { display: inline-flex; align-items: center; gap: 5px; font-size: 0.78rem; color: var(--muted); }
+.sg-heat { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 0.76rem; color: var(--muted); }
+.sg-heat input[type=number] { width: 72px; padding: 3px 6px; font-size: 0.78rem; }
+.sg-heat input[type=color] { width: 28px; height: 24px; padding: 0 2px; border: 1px solid var(--rule); border-radius: 5px; background: var(--surface); cursor: pointer; }
+.sg-heat .hm-bar { width: 90px; height: 10px; border-radius: 5px; border: 1px solid var(--rule); }
+#speed { padding: 4px 6px; font-family: var(--f-mono); font-size: 0.8rem; }
+.sg-heat button { padding: 3px 9px; font-size: 0.76rem; }
+.sg-key { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 0.72rem; color: var(--muted); }
+.tscroll { flex: 1; min-height: 120px; overflow: auto; border: 1px solid var(--rule); border-radius: 8px; }
+table { border-collapse: collapse; width: 100%; font-family: var(--f-mono); font-size: 0.78rem; font-variant-numeric: tabular-nums; }
+th, td { text-align: center; white-space: nowrap; border-bottom: 1px solid var(--rule); }
+th { position: sticky; top: 0; z-index: 1; background: var(--head); color: var(--head-ink); font-weight: 600; padding: 4px 6px; font-size: 0.72rem; line-height: 1.25; }
+th small { display: block; font-weight: 400; }
+td.lbl, th.lbl { text-align: left; padding: 3px 8px; font-family: var(--f-body); position: sticky; left: 0; background: var(--head); color: var(--head-ink); z-index: 2; }
+td.lbl, th.lbl { text-align: center; }
+td.lbl b { display: block; font-family: var(--f-mono); font-size: 0.72rem; font-weight: 600; line-height: 1.25; }
+td.lbl small { display: block; font-family: var(--f-mono); font-size: 0.72rem; font-weight: 400; color: var(--muted); line-height: 1.25; }
+th.lbl { z-index: 3; background: var(--head); }
+td.cell { position: relative; min-width: 66px; height: 30px; cursor: pointer; border-left: 1px solid var(--rule); background: var(--surface); }
+td.cell:hover { outline: 1px solid var(--muted); outline-offset: -1px; }
+td.bnd, td.init { color: var(--muted); background: var(--code-bg); }
+td.heat { background: var(--heat); color: var(--heat-ink); }
+td.future { color: var(--rule); }
+td.src-l { background: var(--src-l); color: var(--src-l-ink); font-weight: 600; }
+td.src-c { background: var(--src-c); color: var(--src-c-ink); font-weight: 600; }
+td.src-r { background: var(--src-r); color: var(--src-r-ink); font-weight: 600; }
+td.tgt { background: var(--tgt); color: var(--accent); font-weight: 700; box-shadow: inset 0 0 0 2px var(--accent); }
+td.picked { box-shadow: inset 0 0 0 2px var(--muted); }
+tr.ex td { position: sticky; bottom: var(--b, 0px); z-index: 1; background: var(--code-bg); height: 26px; font-size: 0.76rem; }
+tr.ex td.lbl { z-index: 3; background: var(--code-bg); }
+tr.ex.first td { border-top: 2px solid var(--ok); }
+td.exv.pct { color: var(--ink); }
+td.exv { color: var(--ok); font-weight: 600; }
+td.exv.err { color: var(--muted); font-weight: 400; }
+td.exv.on { box-shadow: inset 0 0 0 2px var(--ok); }
+td .tag { position: absolute; top: 0; right: 3px; font-size: 0.58rem; font-weight: 600; }
+.formula { background: var(--code-bg); border-radius: 8px; padding: 4px 10px; font-family: var(--f-mono); font-size: 0.82rem; line-height: 1.4; overflow-x: auto; overflow-y: hidden; white-space: nowrap; min-height: 34px; display: flex; align-items: center; gap: 10px; }
+mjx-assistive-mml { display: none !important; }
+.cell-tip { position: fixed; z-index: 50; pointer-events: none; background: var(--ink); color: var(--surface); font-family: var(--f-mono); font-size: 0.78rem; font-weight: 600; padding: 3px 8px; border-radius: 6px; white-space: nowrap; box-shadow: 0 2px 8px rgba(0,0,0,.18); }
+.formula .note { font-family: var(--f-body); color: var(--muted); white-space: nowrap; font-size: 0.76rem; }
+.formula mjx-container { margin: 0 !important; flex: none; }
+.formula mjx-container { font-size: 112%; }
+.note mjx-container { font-size: 100%; color: var(--ink); }
+.brand .eq mjx-container { font-size: 105%; color: var(--ink); }
+code.texsrc { font-family: var(--f-mono); font-size: 0.78rem; color: var(--muted); white-space: pre-wrap; }
+.chip { display: inline-block; padding: 0 5px; border-radius: 4px; font-weight: 600; font-style: normal; line-height: 1.55; }
+.chip.l { background: var(--src-l); color: var(--src-l-ink); }
+.chip.c { background: var(--src-c); color: var(--src-c-ink); }
+.chip.r { background: var(--src-r); color: var(--src-r-ink); }
+.chip.t { background: var(--tgt); color: var(--accent); }
+.big { color: var(--muted); padding: 12px; }
+.cond { display: flex; flex-wrap: wrap; align-items: end; gap: 8px 14px; background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; padding: 8px 12px; }
+.cond .grow { flex: 1 1 240px; min-width: 0; }
+.cond input[type=text] { font: inherit; font-family: var(--f-mono); font-size: 0.85rem; padding: 5px 8px; border: 1px solid var(--rule); border-radius: 6px; background: var(--bg); color: var(--ink); width: 100%; }
+.cond .bc { display: flex; gap: 4px; }
+.cond .bc select { padding: 5px 4px; font-family: var(--f-mono); font-size: 0.82rem; }
+.cond .bc input[type=text] { width: 150px; }
+.cond input[type=number] { width: 70px; }
+.hint { font-size: 0.72rem; color: var(--muted); flex: 1 1 100%; }
+.hint.err { color: var(--bad); font-weight: 600; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="bar">
+  <div class="brand">
+    <h1>วิธี Explicit สำหรับสมการความร้อน</h1>
+    <span class="eq" id="brandEq">u(i,j+1) = (1−2r)·u(i,j) + r·[u(i+1,j) + u(i−1,j)] &nbsp;·&nbsp; r = c²k/h² ≤ ½</span>
+  </div>
+  <div class="field"><label for="preset">โจทย์</label><select id="preset"></select></div>
+  <div class="field"><label for="inH">h</label><input id="inH" type="number" step="any" min="0.001"></div>
+  <div class="field"><label for="inK">k</label><input id="inK" type="number" step="any" min="0.0001"></div>
+  <div class="field"><label for="inT">t สุดท้าย</label><input id="inT" type="number" step="any" min="0.0001"></div>
+  <div class="rbox">r = <b id="rVal">–</b><span id="rPill" class="pill ok">เสถียร</span></div>
+  <button id="resetBtn" type="button">ค่าเดิม</button>
+</div>
+
+<form class="cond" id="condForm" autocomplete="off">
+  <div class="field grow"><label for="inF">เงื่อนไขเริ่มต้น u(x, 0) = f(x)</label><input id="inF" type="text" spellcheck="false"></div>
+  <div class="field"><label for="bcLt">ขอบซ้าย (x = 0)</label><div class="bc"><select id="bcLt"><option value="D">u =</option><option value="N">∂u/∂x =</option></select><input id="bcLv" type="text" spellcheck="false"></div></div>
+  <div class="field"><label for="bcRt">ขอบขวา (x = L)</label><div class="bc"><select id="bcRt"><option value="D">u =</option><option value="N">∂u/∂x =</option></select><input id="bcRv" type="text" spellcheck="false"></div></div>
+  <div class="field"><label for="inL">L</label><input id="inL" type="number" step="any" min="0.01"></div>
+  <div class="field"><label for="inC">c</label><input id="inC" type="number" step="any" min="0.001"></div>
+  <button type="submit" class="primary">คำนวณ</button>
+  <span class="hint" id="condMsg">ใช้ได้: x, t, pi, sin, cos, exp, sqrt, abs, ^ และเงื่อนไข เช่น x &lt; 0.5 ? x : 1 - x</span>
+</form>
+
+<main>
+  <div class="card">
+    <h2>อุณหภูมิ u(x, t) · เส้นหนา = แถว j ที่กำลังคำนวณ (<span id="jInfo">j = 0</span>)</h2>
+    <p class="desc" id="presetDesc"></p>
+    <div class="plotbox"><svg id="plot" viewBox="0 0 640 360" role="img" aria-label="กราฟอุณหภูมิ"></svg></div>
+    <div class="legend" id="legend"></div>
+    <div class="stats">
+      <div class="stat"><div class="k">ก้าวเวลา</div><div class="n" id="sSteps">–</div></div>
+      <div class="stat"><div class="k">ค่ามากสุดที่ t สุดท้าย</div><div class="n" id="sMax">–</div></div>
+      <div class="stat"><div class="k">คลาดเคลื่อนสูงสุด</div><div class="n" id="sErr">–</div></div>
+    </div>
+  </div>
+  <div class="card" id="grid">
+    <div class="sg-bar">
+      <button type="button" data-a="first">⟲ เริ่มใหม่</button>
+      <button type="button" data-a="prev">← ก่อนหน้า</button>
+      <button type="button" data-a="next" class="primary">ถัดไป →</button>
+      <button type="button" data-a="play">▶ เล่นอัตโนมัติ</button>
+      <select id="speed" aria-label="ความเร็วการเล่น" title="ความเร็วการเล่นอัตโนมัติ"><option value="1800">0.5×</option><option value="900">1×</option><option value="450" selected>2×</option><option value="225">4×</option><option value="110">8×</option><option value="55">16×</option><option value="28">32×</option></select>
+      <label class="sg-chk"><input type="checkbox" id="showAll"> แสดงทุกค่า</label>
+      <span class="sg-pos"></span>
+    </div>
+    <div class="sg-heat">
+      <label class="sg-chk"><input type="checkbox" id="hmOn"> Heat map</label>
+      <label for="hmMin">ต่ำสุด</label><input id="hmMin" type="number" step="any"><input id="hmCmin" type="color" value="#2b5c9e" aria-label="สีอุณหภูมิต่ำสุด">
+      <span class="hm-bar" id="hmBar" aria-hidden="true"></span><input id="hmCmid" type="color" value="#f2c14e" aria-label="สีกลาง" title="สีกลาง">
+      <label for="hmMax">สูงสุด</label><input id="hmMax" type="number" step="any"><input id="hmCmax" type="color" value="#d9412b" aria-label="สีอุณหภูมิสูงสุด">
+      <button type="button" id="hmAutoBtn">ช่วงอัตโนมัติ</button>
+    </div>
+    <div class="sg-key"><span><i class="chip l">i−1</i> จุดซ้าย</span><span><i class="chip c">i</i> จุดเดิม</span><span><i class="chip r">i+1</i> จุดขวา</span><span><i class="chip t">u</i> ช่องที่คำนวณ</span><span style="color:var(--ok)">เขียว = ค่าแม่นตรง (แถวล่าง)</span><span>เทา = ค่าที่โจทย์กำหนด</span></div>
+    <div class="tscroll"><table></table><p class="big" hidden></p></div>
+    <div class="formula" aria-live="polite"></div>
+    <div class="cell-tip" id="cellTip" hidden></div>
+  </div>
+</main>
+
+<script>
+  window.MathJax = { loader: { load: [] }, options: { enableAssistiveMml: false, enableMenu: false }, svg: { fontCache: "local" }, startup: { typeset: false } };
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-svg-full.js" async id="mathjax"></script>
+<script>
+(function () {
+  const PI = Math.PI, $ = id => document.getElementById(id);
+
+  /* ---------- presets (all as editable text) ---------- */
+  const PRESETS = {
+    p5:     { name: "ข้อ 5: แท่งยาว 10 ft", desc: "หาอุณหภูมิที่ t = 2 (แบบฝึกหัด 21.6 ข้อ 5)", f: "x*(1 - 0.1*x)", L: 10, c: 1, bl: ["D", "0"], br: ["D", "0"], h: 1, k: 0.5, T: 2, unit: "ft" },
+    ex1:    { name: "Example 1: f(x) = sin πx", desc: "Example 1 ในหนังสือ r = 0.25 (20 ก้าว)", f: "sin(pi*x)", L: 1, c: 1, bl: ["D", "0"], br: ["D", "0"], h: 0.2, k: 0.01, T: 0.2 },
+    ex1bad: { name: "Example 1 ด้วย r = 1 (ผิดเงื่อนไข)", desc: "k = 0.04 ทำให้ r = 1 > ½ ค่าที่ได้จึงคลาดจากเส้นประ", f: "sin(pi*x)", L: 1, c: 1, bl: ["D", "0"], br: ["D", "0"], h: 0.2, k: 0.04, T: 0.2 },
+    p6:     { name: "ข้อ 6: f เป็นรูปสามเหลี่ยม", desc: "แบบฝึกหัด 21.6 ข้อ 6 (8 ก้าว)", f: "x < 0.5 ? x : 1 - x", L: 1, c: 1, bl: ["D", "0"], br: ["D", "0"], h: 0.2, k: 0.01, T: 0.08 },
+    p7:     { name: "ข้อ 7: เหมือนข้อ 6 แต่ r = ½", desc: "แบบฝึกหัด 21.6 ข้อ 7 (4 ก้าว)", f: "x < 0.5 ? x : 1 - x", L: 1, c: 1, bl: ["D", "0"], br: ["D", "0"], h: 0.2, k: 0.02, T: 0.08 },
+    p9:     { name: "ข้อ 9", desc: "แบบฝึกหัด 21.6 ข้อ 9 (5 ก้าว)", f: "x <= 0.2 ? x : 0.25*(1 - x)", L: 1, c: 1, bl: ["D", "0"], br: ["D", "0"], h: 0.2, k: 0.01, T: 0.05 },
+    p10:    { name: "ข้อ 10: ปลายซ้ายหุ้มฉนวน", desc: "แบบฝึกหัด 21.6 ข้อ 10 ปลายขวาเปลี่ยนตามเวลา", f: "0", L: 1, c: 1, bl: ["N", "0"], br: ["D", "sin(50*pi*t/3)"], h: 0.2, k: 0.01, T: 0.12 },
+    hotcold:{ name: "ปลายร้อน 100 / ปลายเย็น 0", desc: "แท่งเริ่มที่ 0 ปลายซ้ายถูกให้ความร้อนคงที่ เข้าสู่สภาวะคงตัวเป็นเส้นตรง", f: "0", L: 1, c: 1, bl: ["D", "100"], br: ["D", "0"], h: 0.1, k: 0.0025, T: 0.2 },
+    insul:  { name: "หุ้มฉนวนทั้งสองปลาย", desc: "ความร้อนออกไม่ได้ อุณหภูมิจะเกลี่ยจนเท่ากันทั้งแท่ง (ค่าเฉลี่ยของ f)", f: "x < 0.5 ? 1 : 0", L: 1, c: 1, bl: ["N", "0"], br: ["N", "0"], h: 0.1, k: 0.0025, T: 0.2 }
+  };
+
+  /* ---------- safe expression compiler ---------- */
+  const FUNCS = ["sin", "cos", "tan", "exp", "log", "sqrt", "abs", "min", "max", "pow", "floor", "ceil", "sinh", "cosh", "tanh", "sign"];
+  const CONSTS = ["pi", "PI", "e", "E"];
+  function compile(expr, vars) {
+    const src = String(expr).trim().replace(/\^/g, "**").replace(/π/g, "pi").replace(/×/g, "*").replace(/−/g, "-");
+    if (!src) throw "ยังไม่ได้ใส่สูตร";
+    if (/[^0-9A-Za-z_+\-*/%().,<>=!?:&|\s]/.test(src)) throw "มีอักขระที่ใช้ไม่ได้";
+    const allowed = new Set([...FUNCS, ...CONSTS, ...vars]);
+    for (const id of src.replace(/\d*\.?\d+(?:[eE][+-]?\d+)?/g, "0").match(/[A-Za-z_]\w*/g) || []) if (!allowed.has(id)) throw `ไม่รู้จัก "${id}" (ใช้ตัวแปรได้แค่ ${vars.join(", ")})`;
+    let fn;
+    try { fn = new Function(...vars, `"use strict";const {${FUNCS.join(",")}}=Math;const pi=Math.PI,PI=pi,e=Math.E,E=e;return (${src});`); }
+    catch (err) { throw /\*\*/.test(src) && /-\s*[\w(.]+\s*\*\*/.test(src) ? "เขียน -x^2 ไม่ได้ ให้ใช้ -(x^2)" : "เขียนสูตรไม่ถูกต้อง"; }
+    const probe = +fn(...vars.map(() => 0.37));
+    if (!Number.isFinite(probe)) throw "คำนวณออกมาไม่เป็นตัวเลข";
+    return (...a) => +fn(...a);
+  }
+
+  /* ---------- explicit solver with Dirichlet / Neumann ends ---------- */
+  function solve(p, h, k, T) {
+    const n = Math.max(2, Math.round(p.L / h)), steps = Math.max(1, Math.round(T / k));
+    h = p.L / n;
+    const r = p.c * p.c * k / (h * h);
+    const x = Array.from({ length: n + 1 }, (_, i) => i * h), t = Array.from({ length: steps + 1 }, (_, j) => j * k);
+    const U = [x.map(v => p.f(v))];
+    if (p.bl.type === "D") U[0][0] = p.bl.g(0);
+    if (p.br.type === "D") U[0][n] = p.br.g(0);
+    for (let j = 0; j < steps; j++) {
+      const a = U[j], b = new Array(n + 1);
+      for (let i = 1; i < n; i++) b[i] = (1 - 2 * r) * a[i] + r * (a[i + 1] + a[i - 1]);
+      // Neumann: ghost point u(-1) = u(1) - 2h g,  u(n+1) = u(n-1) + 2h g
+      b[0] = p.bl.type === "D" ? p.bl.g(t[j + 1]) : (1 - 2 * r) * a[0] + 2 * r * a[1] - 2 * r * h * p.bl.g(t[j]);
+      b[n] = p.br.type === "D" ? p.br.g(t[j + 1]) : (1 - 2 * r) * a[n] + 2 * r * a[n - 1] + 2 * r * h * p.br.g(t[j]);
+      U.push(b);
+    }
+    return { x, t, U, r, n, steps, h, k };
+  }
+
+  /* ---------- exact series where one exists ---------- */
+  function makeExact(p) {
+    const constL = !/\bt\b/.test(p.bl.expr), constR = !/\bt\b/.test(p.br.expr);
+    const M = 2000, terms = 80, L = p.L, w = q => (q === 0 || q === M ? 0.5 : 1);
+    if (p.bl.type === "D" && p.br.type === "D" && constL && constR) {
+      const a = p.bl.g(0), b = p.br.g(0), ss = xx => a + (b - a) * xx / L, B = [];
+      for (let m = 1; m <= terms; m++) { let s = 0; for (let q = 0; q <= M; q++) { const xx = L * q / M; s += w(q) * (p.f(xx) - ss(xx)) * Math.sin(m * PI * xx / L); } B.push(2 * s / M); }
+      return { kind: (a || b) ? "สภาวะคงตัว + อนุกรมไซน์" : "อนุกรมฟูเรียร์ไซน์", u: (xx, tt) => { let u = ss(xx); for (let m = 1; m <= terms; m++) u += B[m - 1] * Math.sin(m * PI * xx / L) * Math.exp(-Math.pow(p.c * m * PI / L, 2) * tt); return u; } };
+    }
+    if (p.bl.type === "N" && p.br.type === "N" && constL && constR && p.bl.g(0) === 0 && p.br.g(0) === 0) {
+      const A = []; let s0 = 0;
+      for (let q = 0; q <= M; q++) s0 += w(q) * p.f(L * q / M);
+      const A0 = s0 / M;
+      for (let m = 1; m <= terms; m++) { let s = 0; for (let q = 0; q <= M; q++) { const xx = L * q / M; s += w(q) * p.f(xx) * Math.cos(m * PI * xx / L); } A.push(2 * s / M); }
+      return { kind: "อนุกรมฟูเรียร์โคไซน์", u: (xx, tt) => { let u = A0; for (let m = 1; m <= terms; m++) u += A[m - 1] * Math.cos(m * PI * xx / L) * Math.exp(-Math.pow(p.c * m * PI / L, 2) * tt); return u; } };
+    }
+    return null;
+  }
+
+  const fmt = (v, d = 4) => (Math.abs(v) < 5e-13 ? 0 : v).toFixed(d);
+  const fx = v => +v.toFixed(6) + "";
+  const cellVal = v => (Math.abs(v) >= 1e5 ? v.toExponential(2) : fmt(v));
+  const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
+  const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const isDark = () => document.documentElement.matches('[data-theme="dark"]') || (matchMedia("(prefers-color-scheme: dark)").matches && !document.documentElement.matches('[data-theme="light"]'));
+  const timeColor = s => `hsl(${Math.round(12 + s * 200)}, 62%, ${isDark() ? 62 : 44}%)`;
+
+  /* ---------- controls ---------- */
+  const sel = $("preset"), inH = $("inH"), inK = $("inK"), inT = $("inT");
+  const inF = $("inF"), bcLt = $("bcLt"), bcLv = $("bcLv"), bcRt = $("bcRt"), bcRv = $("bcRv"), inL = $("inL"), inC = $("inC"), condMsg = $("condMsg");
+  const HINT = condMsg.textContent;
+  Object.entries(PRESETS).forEach(([k, p]) => { const o = document.createElement("option"); o.value = k; o.textContent = p.name; sel.appendChild(o); });
+  const customOpt = document.createElement("option"); customOpt.value = "custom"; customOpt.textContent = "กำหนดเอง"; sel.appendChild(customOpt);
+  let state = null, curJ = 1, problem = null, lastPreset = "p5";
+
+  function loadPreset(key) {
+    const p = PRESETS[key]; lastPreset = key;
+    inF.value = p.f; bcLt.value = p.bl[0]; bcLv.value = p.bl[1]; bcRt.value = p.br[0]; bcRv.value = p.br[1];
+    inL.value = p.L; inC.value = p.c; inH.value = p.h; inK.value = p.k; inT.value = p.T;
+    sel.value = key;
+    if (readProblem()) run(true);
+  }
+  function readProblem() {
+    try {
+      const L = parseFloat(inL.value), c = parseFloat(inC.value);
+      if (!(L > 0)) throw "L ต้องมากกว่า 0";
+      if (!(c > 0)) throw "c ต้องมากกว่า 0";
+      let f, gl, gr;
+      try { f = compile(inF.value, ["x"]); } catch (e) { throw "f(x): " + e; }
+      try { gl = compile(bcLv.value, ["t"]); } catch (e) { throw "ขอบซ้าย: " + e; }
+      try { gr = compile(bcRv.value, ["t"]); } catch (e) { throw "ขอบขวา: " + e; }
+      problem = { L, c, f, fExpr: inF.value.trim(), unit: sel.value !== "custom" ? PRESETS[sel.value].unit : "",
+        bl: { type: bcLt.value, expr: bcLv.value.trim(), g: gl }, br: { type: bcRt.value, expr: bcRv.value.trim(), g: gr } };
+      problem.exact = makeExact(problem);
+      condMsg.textContent = HINT; condMsg.classList.remove("err");
+      return true;
+    } catch (e) {
+      condMsg.textContent = String(e); condMsg.classList.add("err");
+      return false;
+    }
+  }
+  function bcText(b, side) {
+    const at = side === "L" ? "0" : "L";
+    return b.type === "D" ? `u(${at}, t) = ${b.expr}` : `∂u/∂x(${at}, t) = ${b.expr}${b.expr === "0" ? " (หุ้มฉนวน)" : ""}`;
+  }
+  function run(reset) {
+    const p = problem;
+    let h = parseFloat(inH.value), k = parseFloat(inK.value), T = parseFloat(inT.value);
+    if (!(h > 0)) h = p.L / 10; if (!(k > 0)) k = 0.01; if (!(T > 0)) T = 0.1;
+    if (p.L / h > 200) h = p.L / 200;
+    if (T / k > 2000) k = T / 2000;
+    const s = solve(p, h, k, T);
+    state = { p, s };
+    $("rVal").textContent = fx(s.r);
+    const ok = s.r <= 0.5 + 1e-12, pill = $("rPill");
+    pill.className = "pill " + (ok ? "ok" : "bad"); pill.textContent = ok ? "เสถียร" : "ไม่เสถียร";
+    $("sSteps").textContent = s.steps;
+    $("sMax").textContent = cellVal(Math.max(...s.U[s.steps]));
+    if (!p.exact) $("sErr").textContent = "ไม่มีคำตอบแม่นตรง";
+    else {
+      let e = 0;
+      s.U.forEach((row, j) => { if (j) row.forEach((v, i) => { e = Math.max(e, Math.abs(v - p.exact.u(s.x[i], s.t[j]))); }); });
+      $("sErr").textContent = cellVal(e);
+    }
+    const d = sel.value === "custom" ? "โจทย์ที่กำหนดเอง" : PRESETS[sel.value].desc;
+    $("presetDesc").textContent = `${d} · ${bcText(p.bl, "L")} · ${bcText(p.br, "R")} · ค่าแม่นตรง: ${p.exact ? p.exact.kind : "ไม่มี (เงื่อนไขขอบแบบนี้ไม่มีอนุกรมสำเร็จรูป)"}`;
+    if (reset || curJ > s.steps) curJ = 1;
+    grid.set(s, p, reset);
+    draw();
+  }
+  function toCustom() { if (sel.value !== "custom") sel.value = "custom"; }
+
+  /* ---------- chart ---------- */
+  function draw() {
+    const { p, s } = state, svg = $("plot");
+    const W = 640, H = 360, m = { l: 74, r: 14, t: 22, b: 52 }, pw = W - m.l - m.r, ph = H - m.t - m.b;
+    const nShow = Math.min(s.steps + 1, 7), stride = Math.max(1, Math.ceil(s.steps / (nShow - 1)));
+    const rows = []; for (let j = 0; j <= s.steps; j += stride) rows.push(j);
+    if (rows[rows.length - 1] !== s.steps) rows.push(s.steps);
+    if (!rows.includes(curJ)) rows.push(curJ);
+    rows.sort((a, b) => a - b);
+    let lo = 0, hi = -Infinity;
+    rows.forEach(j => s.U[j].forEach(v => { lo = Math.min(lo, v); hi = Math.max(hi, v); }));
+    hi = Math.max(hi, 0);
+    if (hi - lo < 1e-9) hi = lo + 1;
+    const pad = (hi - lo) * 0.06; hi += pad; if (lo < 0) lo -= pad;
+    const X = x => m.l + x / p.L * pw, Y = v => m.t + (hi - v) / (hi - lo) * ph;
+    const muted = css("--muted"), rule = css("--rule"), ink = css("--ink");
+    let g = "";
+    niceTicks(lo, hi, 5).forEach(v => { g += `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(v)}" y2="${Y(v)}" stroke="${rule}"/><text x="${m.l - 6}" y="${Y(v) + 4}" font-size="11" text-anchor="end" fill="${muted}" font-family="JetBrains Mono, monospace">${+v.toFixed(3)}</text>`; });
+    niceTicks(0, p.L, 5).forEach(v => { g += `<text x="${X(v)}" y="${H - m.b + 17}" font-size="11" text-anchor="middle" fill="${muted}" font-family="JetBrains Mono, monospace">${+v.toFixed(2)}</text>`; });
+    if (lo < 0) g += `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(0)}" y2="${Y(0)}" stroke="${muted}"/>`;
+    g += `<line x1="${m.l}" x2="${W - m.r}" y1="${H - m.b}" y2="${H - m.b}" stroke="${muted}"/>`;
+    g += `<line x1="${m.l}" x2="${m.l}" y1="${m.t}" y2="${H - m.b}" stroke="${muted}"/>`;
+    g += `<text x="${m.l + pw / 2}" y="${H - 8}" font-size="13" text-anchor="middle" fill="${ink}" font-weight="600">ตำแหน่งบนแท่ง x${p.unit ? ` (${p.unit})` : ""}</text>`;
+    g += `<text transform="translate(18 ${m.t + ph / 2}) rotate(-90)" font-size="13" text-anchor="middle" fill="${ink}" font-weight="600">อุณหภูมิ u(x, t)</text>`;
+    let leg = "";
+    rows.forEach((j, idx) => {
+      const c = timeColor(rows.length > 1 ? idx / (rows.length - 1) : 0), on = j === curJ;
+      if (p.exact && j > 0) {
+        let d = ""; for (let q = 0; q <= 80; q++) { const xx = p.L * q / 80, v = Math.min(Math.max(p.exact.u(xx, s.t[j]), lo - (hi - lo)), hi + (hi - lo)); d += (q ? "L" : "M") + X(xx).toFixed(1) + " " + Y(v).toFixed(1); }
+        g += `<path d="${d}" fill="none" stroke="${c}" stroke-width="1.2" stroke-dasharray="4 4" opacity="0.75"/>`;
+      }
+      g += `<polyline points="${s.x.map((xx, i) => X(xx).toFixed(1) + "," + Y(s.U[j][i]).toFixed(1)).join(" ")}" fill="none" stroke="${c}" stroke-width="${on ? 3.4 : 1.5}" opacity="${on ? 1 : 0.7}"/>`;
+      if (on && s.x.length <= 41) s.x.forEach((xx, i) => { g += `<circle cx="${X(xx).toFixed(1)}" cy="${Y(s.U[j][i]).toFixed(1)}" r="4" fill="${c}"/>`; });
+      if (on) {
+        let im = 0; s.U[j].forEach((v, i) => { if (v > s.U[j][im]) im = i; });
+        const lx = Math.min(Math.max(X(s.x[im]), m.l + 50), W - m.r - 50), ly = Math.max(Y(s.U[j][im]) - 10, m.t + 4);
+        g += `<text x="${lx}" y="${ly}" font-size="12" text-anchor="middle" fill="${c}" font-weight="700" paint-order="stroke" stroke="${css("--surface")}" stroke-width="4">j = ${j}, t = ${fx(s.t[j])}</text>`;
+      }
+      leg += `<span><i class="sw" style="background:${c};${on ? "height:5px" : ""}"></i>t = ${fx(s.t[j])}</span>`;
+    });
+    if (p.exact) leg += `<span><i class="sw" style="background:repeating-linear-gradient(90deg,${muted} 0 4px,transparent 4px 8px)"></i>แม่นตรง</span>`;
+    svg.innerHTML = g;
+    $("legend").innerHTML = leg;
+    $("jInfo").textContent = `j = ${curJ}, t = ${fx(s.t[curJ])}`;
+  }
+  function niceTicks(a, b, n) {
+    const step0 = (b - a) / n, mag = Math.pow(10, Math.floor(Math.log10(step0))), e = step0 / mag;
+    const step = (e >= 5 ? 10 : e >= 2 ? 5 : e >= 1 ? 2 : 1) * mag, out = [];
+    for (let v = Math.ceil(a / step) * step; v <= b + 1e-9; v += step) out.push(Math.abs(v) < 1e-12 ? 0 : v);
+    return out;
+  }
+
+  /* ---------- step-by-step grid ---------- */
+  const grid = (function () {
+    const root = $("grid"), table = root.querySelector("table"), bigMsg = root.querySelector(".big");
+    const formula = root.querySelector(".formula"), posEl = root.querySelector(".sg-pos"), allBox = $("showAll"), playBtn = root.querySelector('[data-a="play"]');
+    let S, P, order = [], index = new Map(), pos = 0, picked = null, timer = null;
+
+    function set(s, p, reset) {
+      S = s; P = p; order = []; index = new Map();
+      if (hmAuto) heatAutoRange();
+      // IC row and Dirichlet BC columns are fixed (always shown); only the cells the scheme computes are steps
+      const i0 = p.bl.type === "N" ? 0 : 1, i1 = p.br.type === "N" ? s.n : s.n - 1;
+      for (let j = 1; j <= s.steps; j++) for (let i = i0; i <= i1; i++) { index.set(i + "," + j, order.length); order.push([i, j]); }
+      if (reset) pos = -1;
+      pos = Math.max(-1, Math.min(pos, order.length - 1));
+      picked = null; stop();
+      const tooBig = (s.n + 1) * (s.steps + 1) > 3000;
+      table.hidden = tooBig; bigMsg.hidden = !tooBig;
+      bigMsg.textContent = `ตารางมี ${(s.n + 1) * (s.steps + 1)} ช่อง มากเกินกว่าจะแสดงทีละช่อง ลองเพิ่ม h หรือลดเวลาสิ้นสุด`;
+      if (tooBig) { formula.textContent = ""; posEl.textContent = ""; curJ = s.steps; return; }
+      render(false);
+    }
+    const isGiven = i => (i === 0 && P.bl.type === "D") || (i === S.n && P.br.type === "D");
+    function sources(i, j) {
+      const s = {};
+      if (i === 0 && P.bl.type === "N") { s[`0,${j - 1}`] = ["c", "i"]; s[`1,${j - 1}`] = ["r", "i+1 ×2"]; }
+      else if (i === S.n && P.br.type === "N") { s[`${S.n},${j - 1}`] = ["c", "i"]; s[`${S.n - 1},${j - 1}`] = ["l", "i−1 ×2"]; }
+      else { s[`${i - 1},${j - 1}`] = ["l", "i−1"]; s[`${i},${j - 1}`] = ["c", "i"]; s[`${i + 1},${j - 1}`] = ["r", "i+1"]; }
+      return s;
+    }
+    function render(scroll) {
+      const empty = pos < 0 && !picked;
+      const [fi, fj] = picked || (empty ? [-1, 0] : order[pos]);
+      const computed = fj >= 1 && fi >= 0 && !isGiven(fi);
+      const src = computed ? sources(fi, fj) : {};
+      let h = '<thead><tr><th class="lbl">t ↓ · x →</th>' + S.x.map(xx => `<th>x=${fx(xx)}${P.unit ? " " + P.unit : ""}</th>`).join("") + "</tr></thead><tbody>";
+      for (let j = 0; j <= S.steps; j++) {
+        h += `<tr><td class="lbl"><b>t=${fx(S.t[j])} s</b></td>`;
+        for (let i = 0; i <= S.n; i++) {
+          const k = i + "," + j, idx = index.get(k), given = j === 0 || isGiven(i);
+          let cls = "cell " + (j === 0 ? "init" : isGiven(i) ? "bnd" : ""), tag = "";
+          if (src[k]) { cls += " src-" + src[k][0]; tag = `<span class="tag">${src[k][1]}</span>`; }
+          if (i === fi && j === fj) cls += " tgt";
+          const show = given || idx <= pos || allBox.checked || (i === fi && j === fj);
+          if (!show) cls += " future";
+          const hs = show && hmOn.checked ? heatStyle(S.U[j][i]) : "";
+          if (hs) cls += " heat";
+          h += `<td class="${cls}" data-i="${i}" data-j="${j}"${hs}>${tag}${show ? cellVal(S.U[j][i]) : "·"}</td>`;
+        }
+        h += "</tr>";
+      }
+      h += "</tbody><tfoot>";
+      const tf = S.t[fj], cols = S.n + 1;
+      if (!P.exact) h += `<tr class="ex first"><td class="lbl"><b>แม่นตรง</b></td><td class="exv err" colspan="${cols}" style="text-align:left;padding-left:10px">เงื่อนไขขอบแบบนี้ไม่มีคำตอบแม่นตรงแบบอนุกรมสำเร็จรูป</td></tr>`;
+      else if (fj === 0) h += `<tr class="ex first"><td class="lbl"><b>แม่นตรง</b></td><td class="exv err" colspan="${cols}" style="text-align:left;padding-left:10px">${empty ? "จะแสดงเมื่อเริ่มคำนวณแถว j = 1" : "แถว j = 0 คือค่าเริ่มต้น f(x) เลือกช่องในแถวอื่นเพื่อเทียบค่าแม่นตรง"}</td></tr>`;
+      else {
+        const ex = S.x.map(xx => P.exact.u(xx, tf));
+        h += `<tr class="ex first" style="--b:52px"><td class="lbl"><b>แม่นตรง</b> <span style="color:var(--muted)">t=${fx(tf)}</span></td>` + ex.map((v, i) => `<td class="exv${i === fi ? " on" : ""}">${cellVal(v)}</td>`).join("") + "</tr>";
+        h += `<tr class="ex" style="--b:26px"><td class="lbl"><b>คลาดเคลื่อน</b></td>` + ex.map((v, i) => `<td class="exv err${i === fi ? " on" : ""}">${cellVal(Math.abs(S.U[fj][i] - v))}</td>`).join("") + "</tr>";
+        h += `<tr class="ex" style="--b:0px"><td class="lbl"><b>คลาดเคลื่อน %</b></td>` + ex.map((v, i) => `<td class="exv err pct${i === fi ? " on" : ""}">${Math.abs(v) > 1e-9 ? (Math.abs(S.U[fj][i] - v) / Math.abs(v) * 100).toFixed(2) + "%" : "–"}</td>`).join("") + "</tr>";
+      }
+      table.innerHTML = h + "</tfoot>";
+      stackFooter();
+      posEl.textContent = empty ? `ยังไม่ได้คำนวณ · ${order.length} ช่อง` : `ช่องที่ ${pos + 1} / ${order.length}`;
+      formula.innerHTML = empty ? `<span class="note">กด "ถัดไป" เพื่อเริ่มคำนวณจุดภายใน · คลิกช่องสีเทาเพื่อดูการแทนค่า IC / BC</span>` : explain(fi, fj);
+      if (scroll) { const el = table.querySelector(".tgt, .picked"); if (el) keepVisible(el); }
+      if (fj !== curJ) { curJ = fj; draw(); }
+    }
+    // stack the sticky footer rows (exact / error / %) using their real heights
+    function stackFooter() {
+      if (!table.tFoot) return;
+      let acc = 0;
+      [...table.tFoot.rows].reverse().forEach(tr => { tr.style.setProperty("--b", acc + "px"); acc += tr.getBoundingClientRect().height; });
+    }
+    // scroll the table box so the cell is visible between the sticky header, first column and footer
+    function keepVisible(el) {
+      const box = table.parentElement, r = el.getBoundingClientRect(), b = box.getBoundingClientRect();
+      const headH = table.tHead ? table.tHead.getBoundingClientRect().height : 36;
+      const footH = table.tFoot ? table.tFoot.getBoundingClientRect().height : 0;
+      const lblEl = table.querySelector("th.lbl"), lblW = lblEl ? lblEl.getBoundingClientRect().width : 70;
+      const top = b.top + headH, bottom = b.top + box.clientHeight - footH;
+      const left = b.left + lblW, right = b.left + box.clientWidth;
+      if (r.left < left) box.scrollLeft -= left - r.left + 4; else if (r.right > right) box.scrollLeft += r.right - right + 4;
+      if (r.top < top) box.scrollTop -= top - r.top + 4; else if (r.bottom > bottom) box.scrollTop += r.bottom - bottom + 4;
+    }
+    /* ---------- formulas as typeset math (MathJax SVG; plain-text fallback) ---------- */
+    function M(tex, display) {
+      if (window.MathJax && MathJax.tex2svg) {
+        try {
+          const node = MathJax.tex2svg(tex, { display: !!display });
+          node.querySelectorAll("mjx-assistive-mml").forEach(el => el.remove());   // keep only the drawn equation
+          return node.outerHTML;
+        } catch (e) { /* fall through */ }
+      }
+      return `<code class="texsrc">${esc(tex)}</code>`;
+    }
+    const hexOf = name => css(name).replace("#", "").toUpperCase();
+    function numTeX(v) {
+      const s = cellVal(v);
+      const m = s.match(/^(-?[\d.]+)e([+-]\d+)$/);
+      return m ? `${m[1]}\\times 10^{${+m[2]}}` : s;
+    }
+    const ROLE = { l: ["--src-l", "--src-l-ink"], c: ["--src-c", "--src-c-ink"], r: ["--src-r", "--src-r-ink"], t: ["--tgt", "--accent"] };
+    const box = (role, v) => `\\bbox[#${hexOf(ROLE[role][0])},3pt]{\\color{#${hexOf(ROLE[role][1])}}{${numTeX(v)}}}`;
+    const U = (a, b) => `u_{${a},${b}}`;
+    const coef = v => (v < 0 ? `(${fx(v)})` : fx(v));
+
+    // turn a typed expression (JS-like) into TeX
+    function exprTeX(s) {
+      s = String(s).trim();
+      const tern = splitTernary(s);
+      if (tern) return `\\begin{cases} ${exprTeX(tern.a)} & \\text{if } ${exprTeX(tern.cond)} \\\\ ${exprTeX(tern.b)} & \\text{otherwise} \\end{cases}`;
+      let t = s.replace(/\*\*/g, "^").replace(/−/g, "-").replace(/π/g, "pi");
+      t = t.replace(/\^\s*(\([^()]*\)|-?[\d.]+|[A-Za-z_]\w*)/g, (m, a) => "^{" + a.replace(/^\((.*)\)$/, "$1") + "}");
+      t = t.replace(/<=/g, " \\le ").replace(/>=/g, " \\ge ").replace(/!=/g, " \\ne ").replace(/==/g, " = ").replace(/&&/g, " \\land ").replace(/\|\|/g, " \\lor ");
+      t = t.replace(/\*/g, " \\cdot ");
+      t = t.replace(/\b(sin|cos|tan|exp|log|sinh|cosh|tanh)\b/g, "\\$1 ");
+      t = t.replace(/\b(sqrt|abs|min|max|pow|floor|ceil|sign)\b/g, "\\operatorname{$1}");
+      t = t.replace(/\b(pi|PI)\b/g, "\\pi ");
+      return t;
+    }
+    // a variable name standing alone (not part of another identifier)
+    const varRe = (name, flags) => new RegExp("(^|[^A-Za-z0-9_])" + name + "(?![A-Za-z0-9_])", flags);
+    function sub(expr, name, val) {
+      const v = val < 0 ? `(${fx(val)})` : fx(val);
+      return String(expr).replace(varRe(name, "g"), "$1" + v);
+    }
+    function splitTernary(s) {
+      let depth = 0, q = -1, nest = 0;
+      for (let k = 0; k < s.length; k++) {
+        const ch = s[k];
+        if (ch === "(") depth++; else if (ch === ")") depth--;
+        else if (depth === 0 && ch === "?") { if (q < 0) q = k; else nest++; }
+        else if (depth === 0 && ch === ":" && q >= 0) { if (nest) nest--; else return { cond: s.slice(0, q), a: s.slice(q + 1, k), b: s.slice(k + 1) }; }
+      }
+      return null;
+    }
+    // lines "= f(value) = substituted = chosen branch = result" for f(x) or g(t)
+    function subLines(expr, name, val, fn, fname) {
+      const lines = [`${fname}(${fx(val)})`];
+      let note = "";
+      const plain = /^\s*-?[\d.]+\s*$/.test(expr);
+      if (!plain) lines.push(exprTeX(varRe(name, "").test(expr) ? sub(expr, name, val) : expr));
+      const tern = splitTernary(String(expr));
+      if (tern) {
+        let ok = false;
+        try { ok = !!compile(tern.cond, [name])(val); } catch (e) { }
+        const br = ok ? tern.a : tern.b;
+        lines.push(exprTeX(sub(br, name, val)));
+        note = `เงื่อนไข ${M(exprTeX(sub(tern.cond, name, val)))} เป็น<b>${ok ? "จริง" : "เท็จ"}</b> จึงใช้ ${M(exprTeX(br))}`;
+      }
+      lines.push(box("t", fn(val)));
+      return { lines, note };
+    }
+    // one-line chain: lhs = a = b = c
+    const chain = (lhs, rhs) => `${lhs} = ${rhs.join(" = ")}`;
+
+    function explain(i, j) {
+      const r = S.r, h = S.h, c1 = coef(1 - 2 * r), c2 = coef(r);
+      if (isGiven(i)) {
+        const b = i === 0 ? P.bl : P.br, side = i === 0 ? "0" : "L";
+        const s = subLines(b.expr, "t", S.t[j], b.g, "g");
+        return `${M(chain(U(i, j), [`u(${side},\\, t_{${j}})`, ...s.lines]))}${s.note ? ` <span class="note">${s.note}</span>` : ""}`;
+      }
+      if (j === 0) {
+        const s = subLines(P.fExpr, "x", S.x[i], P.f, "f");
+        return `${M(chain(U(i, 0), [`f(x_{${i}})`, ...s.lines]))}${s.note ? ` <span class="note">${s.note}</span>` : ""}`;
+      }
+      const a = S.U[j - 1], v = S.U[j][i];
+      if (i === 0 && P.bl.type === "N") {
+        const gv = P.bl.g(S.t[j - 1]), useG = gv !== 0;
+        const gen = `(1-2r)\\,${U(0, j - 1)} + 2r\\,${U(1, j - 1)}${useG ? ` - 2rh\\,g(t_{${j - 1}})` : ""}`;
+        const num = `${c1} \\times ${box("c", a[0])} + ${coef(2 * r)} \\times ${box("r", a[1])}${useG ? ` - ${fx(2 * r * h)} \\times (${numTeX(gv)})` : ""}`;
+        return M(chain(U(0, j), [gen, num, box("t", v)]));
+      }
+      if (i === S.n && P.br.type === "N") {
+        const n = S.n, gv = P.br.g(S.t[j - 1]), useG = gv !== 0;
+        const gen = `(1-2r)\\,${U(n, j - 1)} + 2r\\,${U(n - 1, j - 1)}${useG ? ` + 2rh\\,g(t_{${j - 1}})` : ""}`;
+        const num = `${c1} \\times ${box("c", a[n])} + ${coef(2 * r)} \\times ${box("l", a[n - 1])}${useG ? ` + ${fx(2 * r * h)} \\times (${numTeX(gv)})` : ""}`;
+        return M(chain(U(n, j), [gen, num, box("t", v)]));
+      }
+      const gen = `(1-2r)\\,${U(i, j - 1)} + r\\,(${U(i + 1, j - 1)} + ${U(i - 1, j - 1)})`;
+      const num = `${c1} \\times ${box("c", a[i])} + ${c2} \\times (${box("r", a[i + 1])} + ${box("l", a[i - 1])})`;
+      return M(chain(U(i, j), [gen, num, box("t", v)]));
+    }
+    function go(p) { picked = null; pos = Math.max(-1, Math.min(order.length - 1, p)); render(true); }
+    const speedSel = $("speed");
+    function startTimer() {
+      clearInterval(timer);
+      timer = setInterval(() => { if (pos >= order.length - 1) return stop(); go(pos + 1); }, +speedSel.value);
+    }
+    speedSel.addEventListener("change", () => { if (timer) startTimer(); });   // change speed while playing
+    function stop() { if (timer) { clearInterval(timer); timer = null; } playBtn.textContent = "▶ เล่นอัตโนมัติ"; }
+    root.querySelector(".sg-bar").addEventListener("click", e => {
+      const a = e.target.closest("button")?.dataset.a; if (!a || table.hidden) return;
+      if (a !== "play") stop();
+      if (a === "first") go(-1);
+      if (a === "prev") go(pos - 1);
+      if (a === "next") go(pos + 1);
+      if (a === "play") {
+        if (timer) return stop();
+        if (pos >= order.length - 1) go(-1);
+        playBtn.textContent = "⏸ หยุด";
+        startTimer();
+      }
+    });
+    allBox.addEventListener("change", () => render(false));
+    // hover a cell: show its grid index (i, j)
+    // ---- heat map: colour each shown cell between the low and high colours ----
+    const hmOn = $("hmOn"), hmMin = $("hmMin"), hmMax = $("hmMax"), hmCmin = $("hmCmin"), hmCmid = $("hmCmid"), hmCmax = $("hmCmax"), hmBar = $("hmBar");
+    let hmAuto = true;
+    const hexRgb = h => [1, 3, 5].map(k => parseInt(h.slice(k, k + 2), 16));
+    function heatAutoRange() {
+      let lo = Infinity, hi = -Infinity;
+      S.U.forEach(row => row.forEach(v => { if (Number.isFinite(v)) { lo = Math.min(lo, v); hi = Math.max(hi, v); } }));
+      if (!Number.isFinite(lo)) { lo = 0; hi = 1; }
+      hmMin.value = +lo.toPrecision(4); hmMax.value = +hi.toPrecision(4);
+    }
+    function heatStyle(v) {
+      const lo = parseFloat(hmMin.value), hi = parseFloat(hmMax.value);
+      if (!Number.isFinite(lo) || !Number.isFinite(hi) || hi === lo || !Number.isFinite(v)) return "";
+      const s = Math.min(1, Math.max(0, (v - lo) / (hi - lo)));
+      // three stops: low -> middle -> high
+      const [a, b, f] = s < 0.5 ? [hexRgb(hmCmin.value), hexRgb(hmCmid.value), s * 2] : [hexRgb(hmCmid.value), hexRgb(hmCmax.value), (s - 0.5) * 2];
+      const c = a.map((x, k) => Math.round(x + (b[k] - x) * f));
+      const lum = (0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]) / 255;
+      return ` style="--heat:rgb(${c.join(",")});--heat-ink:${lum > 0.55 ? "#18202b" : "#ffffff"}"`;
+    }
+    function heatLegend() { hmBar.style.background = `linear-gradient(90deg, ${hmCmin.value}, ${hmCmid.value}, ${hmCmax.value})`; }
+    hmOn.addEventListener("change", () => render(false));
+    [hmMin, hmMax].forEach(el => el.addEventListener("input", () => { hmAuto = false; if (hmOn.checked) render(false); }));
+    [hmCmin, hmCmid, hmCmax].forEach(el => el.addEventListener("input", () => { heatLegend(); if (hmOn.checked) render(false); }));
+    $("hmAutoBtn").addEventListener("click", () => { hmAuto = true; heatAutoRange(); if (!hmOn.checked) hmOn.checked = true; render(false); });
+    heatLegend();
+    const tip = $("cellTip");
+    table.addEventListener("mousemove", e => {
+      const td = e.target.closest("td.cell");
+      if (!td) { tip.hidden = true; return; }
+      tip.textContent = `i = ${td.dataset.i}, j = ${td.dataset.j}`;
+      tip.hidden = false;
+      const w = tip.offsetWidth, x = Math.min(e.clientX + 14, innerWidth - w - 8);
+      tip.style.left = x + "px"; tip.style.top = (e.clientY - 34) + "px";
+    });
+    table.addEventListener("mouseleave", () => { tip.hidden = true; });
+    table.addEventListener("click", e => {
+      const td = e.target.closest("td.cell"); if (!td) return;
+      stop();
+      const k = td.dataset.i + "," + td.dataset.j;
+      if (index.has(k)) go(index.get(k)); else { picked = [+td.dataset.i, +td.dataset.j]; render(false); }
+    });
+    document.addEventListener("keydown", e => {
+      if (e.target.matches("input, select")) return;
+      if (e.key === "ArrowRight") { stop(); go(pos + 1); e.preventDefault(); }
+      if (e.key === "ArrowLeft") { stop(); go(pos - 1); e.preventDefault(); }
+    });
+    return { set, refresh: () => { if (S && !table.hidden) render(false); } };
+  })();
+
+  sel.addEventListener("change", () => { if (sel.value === "custom") return; loadPreset(sel.value); });
+  [inH, inK, inT].forEach(el => el.addEventListener("change", () => { if (problem) run(false); }));
+  [inF, bcLv, bcRv, inL, inC].forEach(el => el.addEventListener("input", toCustom));
+  [bcLt, bcRt].forEach(el => el.addEventListener("change", () => { toCustom(); if (readProblem()) run(true); }));
+  [inF, bcLv, bcRv, inL, inC].forEach(el => el.addEventListener("change", () => { if (readProblem()) run(true); }));
+  $("condForm").addEventListener("submit", e => { e.preventDefault(); toCustom(); if (readProblem()) run(true); });
+  $("resetBtn").addEventListener("click", () => loadPreset(lastPreset));
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => state && draw());
+  new MutationObserver(() => state && draw()).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  loadPreset("p5");
+  // once MathJax is ready, typeset the header formula and redraw the step formulas
+  function mathReady() {
+    try {
+      const svg = MathJax.tex2svg(String.raw`u_{i,j+1} = (1-2r)\,u_{i,j} + r\,(u_{i+1,j} + u_{i-1,j}), \qquad r = \frac{c^2k}{h^2} \le \tfrac12`, { display: false });
+      svg.querySelectorAll("mjx-assistive-mml").forEach(el => el.remove());
+      $("brandEq").replaceChildren(svg);
+    } catch (e) { }
+    grid.refresh();
+  }
+  (function waitMath(n) {
+    if (window.MathJax && MathJax.startup && MathJax.startup.promise) MathJax.startup.promise.then(mathReady);
+    else if (n < 100) setTimeout(() => waitMath(n + 1), 100);
+  })(0);
+})();
+</script>
+</body>
+</html>
